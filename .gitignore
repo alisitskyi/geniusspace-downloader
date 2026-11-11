@@ -1,0 +1,32 @@
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# Python cache & temp
+__pycache__/
+*.py[cod]
+*$py.class
+*.log
+*.tmp
+*.temp_opt.*
+
+# Sensitive environment variables (секретні токени акаунта)
+.env
+!.env.example
+
+# Папки із завантаженими відеокурсами (гігабайти відео)
+GeniusSpace_*/
+downloads/
+
+# Бінарники понад 100 МБ (GitHub забороняє файли > 100 МБ)
+bin/
+*.exe
+*.zip
+*.tar.gz
+
+# IDE & OS files
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
