@@ -10,13 +10,34 @@ RESERVED_NAMES = {
 }
 
 def setup_console_encoding():
-    """Налаштовує консоль Windows на роботу з UTF-8 для коректного виведення кирилиці"""
+    """
+    Налаштовує консоль Windows на роботу з UTF-8 та вмикає підтримку ANSI-кольорів (VT100).
+    Забезпечує коректне відображення українського тексту та кольорових меню в cmd.exe.
+    """
     if sys.platform == "win32":
         try:
             sys.stdout.reconfigure(encoding="utf-8")
             sys.stderr.reconfigure(encoding="utf-8")
         except Exception:
             pass
+
+        # Вмикаємо підтримку кольорів ANSI у Windows cmd.exe
+        try:
+            import colorama
+            colorama.just_fix_windows_console()
+        except Exception:
+            try:
+                import ctypes
+                kernel32 = ctypes.windll.kernel32
+                for std_id in (-11, -12):  # STD_OUTPUT_HANDLE, STD_ERROR_HANDLE
+                    h = kernel32.GetStdHandle(std_id)
+                    if h and h != -1:
+                        mode = ctypes.c_ulong()
+                        if kernel32.GetConsoleMode(h, ctypes.byref(mode)):
+                            # ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
+                            kernel32.SetConsoleMode(h, mode.value | 0x0004)
+            except Exception:
+                pass
 
 def sanitize_filename(name: str, max_length: int = 120) -> str:
     """

@@ -14,7 +14,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 
-console = Console(legacy_windows=False)
+console = Console()
 
 def test():
     load_dotenv(override=True)

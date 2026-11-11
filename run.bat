@@ -1,62 +1,58 @@
 @echo off
-chcp 65001 > nul
-title Genius.Space Course Downloader
+setlocal
 cd /d "%~dp0"
+title Genius.Space Course Downloader
 
-echo =======================================================
-echo          Genius.Space Course Downloader
-echo =======================================================
-echo.
+REM 1. Fast path: virtual environment already exists
+if exist ".venv\Scripts\python.exe" goto :launch
 
-:: Перевірка наявності Python у системі
+REM 2. Check if python is in PATH
 where python >nul 2>nul
-if %errorlevel% neq 0 (
-    where py >nul 2>nul
-    if %errorlevel% neq 0 (
-        echo [ПОМИЛКА] Python не знайдено на цьому комп'ютері!
-        echo.
-        echo Для роботи потрібен Python 3.10 або новіший:
-        echo 1. Завантажте Python з https://www.python.org/downloads/
-        echo 2. ПРИ ВСТАНОВЛЕННІ ОБОВ'ЯЗКОВО поставте прапорець:
-        echo    [X] "Add python.exe to PATH"
-        echo 3. Після встановлення запустіть run.bat знову.
-        echo.
-        pause
-        exit /b 1
-    ) else (
-        set PY_CMD=py
-    )
-) else (
-    set PY_CMD=python
+if %errorlevel% equ 0 (
+    set "PY_CMD=python"
+    goto :setup_venv
 )
 
-:: Перевірка віртуального оточення
-if not exist ".venv\Scripts\python.exe" (
-    echo [ІНФО] Перший запуск на цьому комп'ютері.
-    echo Створення віртуального оточення (.venv)...
-    %PY_CMD% -m venv .venv
-    if %errorlevel% neq 0 (
-        echo [ПОМИЛКА] Не вдалося створити .venv. Перевірте встановлення Python.
-        pause
-        exit /b 1
-    )
-    echo Встановлення необхідних бібліотек (requests, yt-dlp, rich)...
-    call .venv\Scripts\activate.bat
-    python -m pip install --upgrade pip
-    pip install -r requirements.txt
-    if %errorlevel% neq 0 (
-        echo [ПОМИЛКА] Не вдалося встановити бібліотеки. Перевірте підключення до Інтернету.
-        pause
-        exit /b 1
-    )
-    echo [OK] Усі залежності успішно встановлено!
-    echo.
-) else (
-    call .venv\Scripts\activate.bat
+where py >nul 2>nul
+if %errorlevel% equ 0 (
+    set "PY_CMD=py"
+    goto :setup_venv
 )
 
-:: Запуск основної програми
-python main.py
-
+echo [ERROR] Python not found in system PATH!
+echo.
+echo Please install Python 3.10 or newer from https://www.python.org/downloads/
+echo Important: check the box [X] "Add python.exe to PATH" during installation.
 echo.
 pause
+exit /b 1
+
+:setup_venv
+echo [INFO] First run setup: creating virtual environment (.venv)...
+%PY_CMD% -m venv .venv
+if %errorlevel% neq 0 (
+    echo [ERROR] Failed to create virtual environment.
+    pause
+    exit /b 1
+)
+
+echo [INFO] Installing required libraries (requests, yt-dlp, rich, colorama)...
+call .venv\Scripts\activate.bat
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+if %errorlevel% neq 0 (
+    echo [ERROR] Failed to install packages. Check internet connection.
+    pause
+    exit /b 1
+)
+echo [OK] Setup completed successfully!
+echo.
+
+:launch
+call .venv\Scripts\activate.bat
+python main.py
+if %errorlevel% neq 0 (
+    echo.
+    echo Program finished with error code %errorlevel%.
+    pause
+)

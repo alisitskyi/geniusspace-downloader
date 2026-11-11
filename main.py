@@ -16,7 +16,7 @@ from rich.table import Table
 from rich.panel import Panel
 from rich.prompt import Prompt
 
-console = Console(legacy_windows=False)
+console = Console()
 
 def ensure_authenticated() -> GeniusSpaceAPI:
     load_dotenv(override=True)
