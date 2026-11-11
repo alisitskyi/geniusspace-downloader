@@ -20,7 +20,7 @@ class CourseDownloader:
         download_videos: bool = True,
         download_files: bool = True,
         video_quality: str = "best",
-        optimize_videos: bool = True,
+        optimize_videos: bool = False,
         optimize_crf: int = 26,
         progress_callback: Optional[Callable[[str], None]] = None
     ):

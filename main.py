@@ -18,8 +18,11 @@ from rich.prompt import Prompt
 
 console = Console()
 
+ENV_PATH = Path(__file__).resolve().parent / ".env"
+load_dotenv(ENV_PATH, override=True)
+
 def ensure_authenticated() -> GeniusSpaceAPI:
-    load_dotenv(override=True)
+    load_dotenv(ENV_PATH, override=True)
     token = os.getenv("GENIUS_AUTH_TOKEN", "").strip()
     session_id = os.getenv("GENIUS_SESSION_ID", "").strip() or None
 
@@ -81,7 +84,7 @@ def main():
     download_videos = os.getenv("DOWNLOAD_VIDEOS", "true").lower() == "true"
     download_files = os.getenv("DOWNLOAD_FILES", "true").lower() == "true"
     video_quality = os.getenv("VIDEO_QUALITY", "720p").strip()
-    optimize_videos = os.getenv("OPTIMIZE_VIDEOS", "true").lower() == "true"
+    optimize_videos = os.getenv("OPTIMIZE_VIDEOS", "false").lower() == "true"
     optimize_crf = int(os.getenv("OPTIMIZE_CRF", "26"))
 
     target_path_display = (Path(__file__).parent / base_download_dir / default_dir_name).resolve()
