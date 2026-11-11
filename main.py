@@ -149,9 +149,13 @@ def main():
         elif choice == "4":
             # Пошук папок курсів
             base_dir = (Path(__file__).parent / base_download_dir).resolve()
-            course_dirs = [d for d in base_dir.iterdir() if d.is_dir() and d.name.startswith("GeniusSpace_")]
+            excluded_dirs = {".venv", "bin", "src", ".git", "__pycache__"}
+            course_dirs = [
+                d for d in base_dir.iterdir()
+                if d.is_dir() and d.name not in excluded_dirs and not d.name.startswith(".") and list(d.rglob("*.mp4"))
+            ]
             if not course_dirs:
-                console.print("[yellow]Не знайдено завантажених папок курсів у робочій директорії.[/yellow]\n")
+                console.print("[yellow]Не знайдено завантажених папок курсів із відеофайлами.[/yellow]\n")
                 continue
 
             console.print("\n[bold]Оберіть папку для оптимізації відео:[/bold]")

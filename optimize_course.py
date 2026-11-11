@@ -126,9 +126,13 @@ if __name__ == "__main__":
         target_path = Path(sys.argv[1]).resolve()
     else:
         base = Path(__file__).parent
-        courses = [d for d in base.iterdir() if d.is_dir() and d.name.startswith("GeniusSpace_")]
+        excluded = {".venv", "bin", "src", ".git", "__pycache__"}
+        courses = [
+            d for d in base.iterdir()
+            if d.is_dir() and d.name not in excluded and not d.name.startswith(".") and list(d.rglob("*.mp4"))
+        ]
         if not courses:
-            print("Не знайдено папок з курсами.")
+            print("Не знайдено папок з відеофайлами курсів.")
             sys.exit(0)
         print("Оберіть папку для оптимізації:")
         for i, c in enumerate(courses, 1):

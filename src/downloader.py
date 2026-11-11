@@ -312,7 +312,10 @@ class CourseDownloader:
         if target_dir_name:
             course_dir = self.output_dir / target_dir_name
         else:
-            course_dir = self.output_dir / sanitize_filename(course_name)
+            clean_name = sanitize_filename(course_name)
+            if not clean_name.startswith("GeniusSpace_"):
+                clean_name = f"GeniusSpace_{clean_name}"
+            course_dir = self.output_dir / clean_name
 
         course_dir.mkdir(parents=True, exist_ok=True)
         self.log(f"Цільова папка курсу: {course_dir.resolve()}")
