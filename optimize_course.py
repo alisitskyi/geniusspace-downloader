@@ -24,10 +24,48 @@ def get_ffmpeg_path() -> str:
         return str(local_ff.resolve())
     return "ffmpeg"
 
+def get_ffprobe_path() -> str:
+    local_probe = Path(__file__).parent / "bin" / "ffprobe.exe"
+    if local_probe.exists():
+        return str(local_probe.resolve())
+    return "ffprobe"
+
+def is_already_optimized(video_path: Path) -> bool:
+    """Швидка перевірка бітрейту через ffprobe. Якщо бітрейт < 850 kbps, відео вже стиснуто."""
+    ffprobe = get_ffprobe_path()
+    try:
+        cmd = [
+            ffprobe, "-v", "error",
+            "-show_entries", "format=bit_rate",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            str(video_path)
+        ]
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=5)
+        val = res.stdout.decode("ascii", errors="ignore").strip()
+        if val.isdigit():
+            br = int(val)
+            if 0 < br < 850000:
+                return True
+    except Exception:
+        pass
+    return False
+
 def optimize_file(ffmpeg_path: str, video_path: Path, crf: int = 26) -> bool:
     orig_size = video_path.stat().st_size
     if orig_size < 1024 * 1024:
+        print("      [Пропуск] Файл менше 1 МБ.")
         return False
+
+    # Перевірка: чи файл не завантажується прямо зараз іншим процесом
+    parent_parts = list(video_path.parent.glob(f"{video_path.stem}*.part*"))
+    if parent_parts:
+        print("      [Пропуск] Файл зараз завантажується іншим процесом.")
+        return False
+
+    # Перевірка: якщо відео вже оптимізовано (бітрейт < 850 kbps)
+    if is_already_optimized(video_path):
+        print(f"      [OK] Вже оптимізовано ({format_bytes(orig_size)}). Пропуск.")
+        return True
 
     temp_out = video_path.with_name(f"{video_path.stem}.temp_opt.mp4")
     if temp_out.exists():
@@ -38,15 +76,16 @@ def optimize_file(ffmpeg_path: str, video_path: Path, crf: int = 26) -> bool:
 
     # 1. Спроба апаратного прискорення Intel QuickSync (h264_qsv)
     cmd_qsv = [
-        ffmpeg_path, "-y", "-i", str(video_path),
+        ffmpeg_path, "-nostdin", "-y", "-i", str(video_path),
         "-c:v", "h264_qsv", "-global_quality", str(crf), "-preset", "medium",
         "-c:a", "aac", "-b:a", "128k",
         str(temp_out)
     ]
 
+    print("      [QSV] Апаратне стиснення Intel QuickSync...", end="", flush=True)
     success = False
     try:
-        res = subprocess.run(cmd_qsv, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, timeout=1800)
+        res = subprocess.run(cmd_qsv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=900)
         if res.returncode == 0 and temp_out.exists() and temp_out.stat().st_size > 1024:
             success = True
     except Exception:
@@ -54,18 +93,24 @@ def optimize_file(ffmpeg_path: str, video_path: Path, crf: int = 26) -> bool:
 
     # 2. Якщо QSV недоступний — CPU libx264
     if not success:
+        if temp_out.exists():
+            try:
+                temp_out.unlink()
+            except Exception:
+                pass
+        print("\r      [CPU] Стиснення через центральний процесор (libx264)...", end="", flush=True)
         cmd_cpu = [
-            ffmpeg_path, "-y", "-i", str(video_path),
+            ffmpeg_path, "-nostdin", "-y", "-i", str(video_path),
             "-c:v", "libx264", "-crf", str(crf), "-preset", "faster",
             "-c:a", "aac", "-b:a", "128k",
             str(temp_out)
         ]
         try:
-            res = subprocess.run(cmd_cpu, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, timeout=2400)
+            res = subprocess.run(cmd_cpu, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=1800)
             if res.returncode == 0 and temp_out.exists() and temp_out.stat().st_size > 1024:
                 success = True
         except Exception as e:
-            print(f"      [Помилка стиснення]: {e}")
+            print(f"\r      [Помилка стиснення]: {e}")
             success = False
 
     if success and temp_out.exists():
@@ -74,13 +119,14 @@ def optimize_file(ffmpeg_path: str, video_path: Path, crf: int = 26) -> bool:
             ratio = (1 - (new_size / orig_size)) * 100
             video_path.unlink()
             temp_out.rename(video_path)
-            print(f"      [OK] Стиснуто: {format_bytes(orig_size)} -> {format_bytes(new_size)} (-{ratio:.1f}%)")
+            print(f"\r      [OK] Стиснуто: {format_bytes(orig_size)} -> {format_bytes(new_size)} (-{ratio:.1f}%)")
             return True
         else:
-            print(f"      [Інфо] Оригінал вже має оптимальний розмір.")
+            print(f"\r      [Інфо] Оригінал вже має оптимальний розмір. Пропуск.")
             temp_out.unlink()
             return False
     else:
+        print("\r      [Помилка] Не вдалося оптимізувати файл.")
         if temp_out.exists():
             try:
                 temp_out.unlink()
@@ -115,34 +161,38 @@ def optimize_directory(target_dir: Path, crf: int = 26):
 
     print("\n" + "=" * 60)
     print(f"[УСПІШНО] Оптимізацію завершено!")
-    print(f"Оптимізовано відео:   {optimized_count}/{len(mp4s)}")
-    print(f"Початковий розмір:    {format_bytes(total_orig)}")
-    print(f"Кінцевий розмір:      {format_bytes(total_new)}")
-    print(f"Заощаджено місця:     {format_bytes(saved)} (-{ratio:.1f}%)")
+    print(f"Оптимізовано/перевірено відео: {optimized_count}/{len(mp4s)}")
+    print(f"Початковий розмір:             {format_bytes(total_orig)}")
+    print(f"Кінцевий розмір:               {format_bytes(total_new)}")
+    if saved > 0:
+        print(f"Заощаджено місця:              {format_bytes(saved)} (-{ratio:.1f}%)")
     print("=" * 60)
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        target_path = Path(sys.argv[1]).resolve()
-    else:
-        base = Path(__file__).parent
-        excluded = {".venv", "bin", "src", ".git", "__pycache__"}
-        courses = [
-            d for d in base.iterdir()
-            if d.is_dir() and d.name not in excluded and not d.name.startswith(".") and list(d.rglob("*.mp4"))
-        ]
-        if not courses:
-            print("Не знайдено папок з відеофайлами курсів.")
-            sys.exit(0)
-        print("Оберіть папку для оптимізації:")
-        for i, c in enumerate(courses, 1):
-            sz = sum(f.stat().st_size for f in c.rglob("*.mp4")) / (1024**3)
-            print(f"  {i}. {c.name} ({sz:.2f} ГБ)")
-        choice = input("\nНомер папки: ").strip()
-        try:
-            target_path = courses[int(choice) - 1]
-        except Exception:
-            print("Невірний вибір.")
-            sys.exit(0)
+    try:
+        if len(sys.argv) > 1:
+            target_path = Path(sys.argv[1]).resolve()
+        else:
+            base = Path(__file__).parent
+            excluded = {".venv", "bin", "src", ".git", "__pycache__"}
+            courses = [
+                d for d in base.iterdir()
+                if d.is_dir() and d.name not in excluded and not d.name.startswith(".") and list(d.rglob("*.mp4"))
+            ]
+            if not courses:
+                print("Не знайдено папок з відеофайлами курсів.")
+                sys.exit(0)
+            print("Оберіть папку для оптимізації:")
+            for i, c in enumerate(courses, 1):
+                sz = sum(f.stat().st_size for f in c.rglob("*.mp4")) / (1024**3)
+                print(f"  {i}. {c.name} ({sz:.2f} ГБ)")
+            choice = input("\nНомер папки: ").strip()
+            try:
+                target_path = courses[int(choice) - 1]
+            except Exception:
+                print("Невірний вибір.")
+                sys.exit(0)
 
-    optimize_directory(target_path)
+        optimize_directory(target_path)
+    except KeyboardInterrupt:
+        print("\n[Оптимізацію зупинено користувачем]")

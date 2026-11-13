@@ -222,7 +222,7 @@ class CourseDownloader:
 
         # 1. Спроба через апаратне прискорення Intel QuickSync (h264_qsv)
         qsv_cmd = [
-            self.ffmpeg_path, "-y", "-i", str(video_path),
+            self.ffmpeg_path, "-nostdin", "-y", "-i", str(video_path),
             "-c:v", "h264_qsv", "-global_quality", str(self.optimize_crf), "-preset", "medium",
             "-c:a", "aac", "-b:a", "128k",
             str(temp_out)
@@ -230,7 +230,7 @@ class CourseDownloader:
 
         success = False
         try:
-            res = subprocess.run(qsv_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, timeout=1200)
+            res = subprocess.run(qsv_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=900)
             if res.returncode == 0 and temp_out.exists() and temp_out.stat().st_size > 1024:
                 success = True
         except Exception:
@@ -238,14 +238,19 @@ class CourseDownloader:
 
         # 2. Якщо QSV не спрацював, надійний CPU fallback (libx264)
         if not success:
+            if temp_out.exists():
+                try:
+                    temp_out.unlink()
+                except Exception:
+                    pass
             cpu_cmd = [
-                self.ffmpeg_path, "-y", "-i", str(video_path),
+                self.ffmpeg_path, "-nostdin", "-y", "-i", str(video_path),
                 "-c:v", "libx264", "-crf", str(self.optimize_crf), "-preset", "faster",
                 "-c:a", "aac", "-b:a", "128k",
                 str(temp_out)
             ]
             try:
-                res = subprocess.run(cpu_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, timeout=1800)
+                res = subprocess.run(cpu_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=1800)
                 if res.returncode == 0 and temp_out.exists() and temp_out.stat().st_size > 1024:
                     success = True
             except Exception as e:
