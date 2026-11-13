@@ -11,6 +11,19 @@ if sys.platform == "win32":
     except Exception:
         pass
 
+    # Вимикаємо QuickEdit Mode, щоб випадковий дотик до екрана на телефоні не ставив процес на паузу
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        h_in = kernel32.GetStdHandle(-10)  # STD_INPUT_HANDLE
+        if h_in and h_in != -1:
+            in_mode = ctypes.c_ulong()
+            if kernel32.GetConsoleMode(h_in, ctypes.byref(in_mode)):
+                # ENABLE_QUICK_EDIT_MODE = 0x0040, ENABLE_EXTENDED_FLAGS = 0x0080
+                kernel32.SetConsoleMode(h_in, (in_mode.value & ~0x0040) | 0x0080)
+    except Exception:
+        pass
+
 def format_bytes(bytes_int: int) -> str:
     for unit in ["B", "KB", "MB", "GB", "TB"]:
         if bytes_int < 1024.0:

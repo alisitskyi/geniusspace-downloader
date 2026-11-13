@@ -39,6 +39,19 @@ def setup_console_encoding():
             except Exception:
                 pass
 
+        # Вимикаємо QuickEdit Mode, щоб кліки або випадкові торкання пальцем на телефоні (RDP) не заморожували процес
+        try:
+            import ctypes
+            kernel32 = ctypes.windll.kernel32
+            h_in = kernel32.GetStdHandle(-10)  # STD_INPUT_HANDLE
+            if h_in and h_in != -1:
+                in_mode = ctypes.c_ulong()
+                if kernel32.GetConsoleMode(h_in, ctypes.byref(in_mode)):
+                    # ENABLE_QUICK_EDIT_MODE = 0x0040, ENABLE_EXTENDED_FLAGS = 0x0080
+                    kernel32.SetConsoleMode(h_in, (in_mode.value & ~0x0040) | 0x0080)
+        except Exception:
+            pass
+
 def sanitize_filename(name: str, max_length: int = 120) -> str:
     """
     Очищає назву файлу/папки від заборонених символів Windows та обмежує довжину.
